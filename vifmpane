@@ -63,26 +63,18 @@ vifmpane()
 
     local vifminfo="$HOME/.config/vifm/vifminfo.json"
 
-    # For debugging purposes:
-    jq '{gtabs, "active-gtab": (."active-gtab" // 0) }' $vifminfo \
-    | jq 'del(.gtabs[].panes[].ptabs[].history)' \
-    > $CACHE_DIR/last_locations.json
+    # # For debugging purposes:
+    # jq '{gtabs, "active-gtab": (."active-gtab" // 0) }' $vifminfo \
+    # | jq 'del(.gtabs[].panes[].ptabs[].history)' \
+    # > $CACHE_DIR/last_locations.json
 
-# if local chosen_dir="$(cat -- "$temp_file")" && [ -d "$chosen_dir" ] && [ "$chosen_dir" != "$PWD" ]; then
-#     cd -- "$chosen_dir"
-# fi
+    if [ -f "$temp_file" ]
+    then
+        local chosen_dir="$(cat -- "$temp_file")"
+        command rm -f "$temp_file"
 
-
-    # if [ -f "$temp_file" ]
-    # then
-    #     local chosen_dir="$(cat "$temp_file")"
-    #     command rm -f "$temp_file"
-
-        # if [ -d "$chosen_dir" ]
-        if local chosen_dir="$(cat -- "$temp_file")" && [ -d "$chosen_dir" ] && [ "$chosen_dir" != "$PWD" ]
+        if [ -d "$chosen_dir" ]
         then
-            # echo -e $chosen_dir
-
             # Get last locations on each pane on active tab.
             local last_locations=$(
                 # If there are several global tabs we consider only active tab.
@@ -104,7 +96,7 @@ vifmpane()
 
             # If $non_active_pane variable is empty, that means that on both
             # panes the same path is set.  In this case, we choose the zero pane.
-            if [ -z $non_active_pane ]; then non_active_pane=0; fi
+            if [[ -z $non_active_pane ]]; then non_active_pane=0; fi
 
             # If $non_active_pane index is neither 0 nor 1, that means that
             # something goes wrong (for example we leave vifm without
@@ -123,9 +115,8 @@ vifmpane()
 
             if [ "$chosen_dir" != "$PWD" ]; then cd -- "$chosen_dir"; fi
         fi
-    # fi
-
-    command rm -f "$temp_file"
+        return $return_value
+    fi
 }
 
 vifmpane "$@"
