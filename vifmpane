@@ -18,12 +18,12 @@ vifmpane()
     elif [ -x $(command -v vifm) ]; then
         local vifm_exe=$(command -v vifm)
     else
-        printf "vifm isn't installed on your system!\n"
+        echo "vifm isn't installed on your system!\n"
         exit 1
     fi
 
     if [ ! -x $(command -v jq) ]; then
-        printf "jq isn't installed on your system!\n"
+        echo "jq isn't installed on your system!\n"
         exit 1
     fi
 
@@ -31,7 +31,6 @@ vifmpane()
 
     if [[ $VIFM_PANE_STRATEGY == 'left' || $VIFM_PANE_STRATEGY == 'first' ]]
     then
-        echo 'read strategy: left'
         $vifm_exe "$PWD" $@
     elif [ -s $nap_cache ]  # -s : If file exists and has size greater than zero.
     then
@@ -40,12 +39,10 @@ vifmpane()
 
         if [[ $VIFM_PANE_STRATEGY == 'right' || $VIFM_PANE_STRATEGY == 'second' ]]
         then
-            echo 'read strategy: right'
             local first_pane="$nap_path"
             local second_pane="$PWD"
             $vifm_exe "$first_pane" "$second_pane" $@
         else
-            echo 'read strategy: last'
             case $nap_index in
                 0)
                     local first_pane="$nap_path"
@@ -64,24 +61,22 @@ vifmpane()
             $vifm_exe "$first_pane" "$second_pane" --choose-dir=$temp_file $@
         fi
     else
-        echo 'cache file does not exist'
         local temp_file="$(mktemp -t "vifm_cd.XXXXXXXXXX")"
         $vifm_exe "$PWD" --choose-dir=$temp_file $@
     fi
     local return_value="$?"
 
     if [ -f "$temp_file" ]; then
-        echo 'temp file exist'
         local chosen_dir="$(cat -- "$temp_file")"
         command rm -f "$temp_file"
     fi
 
     local vifminfo="$HOME/.config/vifm/vifminfo.json"
 
-    # For debugging purposes:
-    jq '{gtabs, "active-gtab": (."active-gtab" // 0) }' $vifminfo \
-    | jq 'del(.gtabs[].panes[].ptabs[].history)' \
-    > $CACHE_DIR/last_locations.json
+    # # For debugging purposes:
+    # jq '{gtabs, "active-gtab": (."active-gtab" // 0) }' $vifminfo \
+    # | jq 'del(.gtabs[].panes[].ptabs[].history)' \
+    # > $CACHE_DIR/last_locations.json
 
     # Get last locations on each pane on active tab.
     local last_locations=$(
@@ -96,11 +91,8 @@ vifmpane()
         | jq --slurp 'to_entries'
     )
 
-    echo "last_locations:\n$last_locations"
-
     if [[ $VIFM_PANE_STRATEGY == 'left' || $VIFM_PANE_STRATEGY == 'first' ]]
     then
-        echo 'write strategy: left'
         # When the “left” or “first” strategy is selected, the left panel is
         # always considered to be the active panel, and the right panel is
         # always considered to be non-active.
@@ -109,12 +101,10 @@ vifmpane()
         local skip=true
     elif [[ $VIFM_PANE_STRATEGY == 'right' || $VIFM_PANE_STRATEGY == 'second' ]]
     then
-        echo 'write strategy: right'
         local nap_index=0
         local ap_index=1
     elif [ -d "$chosen_dir" ]
     then
-        echo 'write strategy: last'
 
         # Find last non active pane.
         local nap_index=$(
@@ -125,28 +115,20 @@ vifmpane()
         # If $non_active_pane variable is empty, that means that on both
         # panes the same path is set.  In this case, we choose the zero pane.
         if [[ -z $nap_index ]]; then nap_index=0; fi
-        echo "nap_index: $nap_index"
 
         # If $non_active_pane index is neither 0 nor 1, that means that
         # something goes wrong (for example we leave vifm without saving
         # state by :qa!).  In this case, we don't save any data.
         if [[ $nap_index != "0" && $nap_index != "1" ]]; then
-            echo 'set skip variable'
             local skip=true
         fi
     fi
 
-    echo "chosen_dir: $chosen_dir"
     if [ ! $chosen_dir ]; then
-        echo 'set $choosen_dir'
         local chosen_dir=$(echo $last_locations | jq -r --arg n $ap_index '.[$n|tonumber].value')
-        echo "chosen_dir: $chosen_dir"
     fi
 
-    # local ap_path=$(echo $last_locations | jq -r --arg n $ap_index '.[$n|tonumber].value')
     local nap_path=$(echo $last_locations | jq -r --arg n $nap_index '.[$n|tonumber].value')
-
-    echo "skip: $skip"
 
     if [ ! $skip ]; then
         echo $nap_path > $nap_cache
