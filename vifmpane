@@ -133,10 +133,10 @@ vifmpane()
         local chosen_dir=$(echo $last_locations | jq -r --arg n $ap_index '.[$n|tonumber].value')
     fi
 
-    local nap_path=$(echo $last_locations | jq -r --arg n $nap_index '.[$n|tonumber].value')
-
     if [ ! $skip ]; then
+        local nap_path=$(echo $last_locations | jq -r --arg n $nap_index '.[$n|tonumber].value')
         echo $nap_path > $nap_cache
+
         echo $nap_index >> $nap_cache
     fi
 
