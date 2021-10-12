@@ -7,11 +7,9 @@
 vifmpane()
 {
     # local -x TERM=xterm-direct  # need for truecolor support
-    # emulate -L zsh
 
     local CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/vifm"
     [ ! -d $CACHE_DIR ] && mkdir -p $CACHE_DIR
-
 
     if [ -x $(command -v vifmrun) ]; then
         local vifm_exe=$(command -v vifmrun)
@@ -101,11 +99,13 @@ vifmpane()
         local skip=true
     elif [[ $VIFM_PANE_STRATEGY == 'right' || $VIFM_PANE_STRATEGY == 'second' ]]
     then
+        # The same is for 'right' or 'second' strategy: the reght panel is
+        # always considered to be the active panel, and the left panel is
+        # always considered to be non-active.
         local nap_index=0
         local ap_index=1
     elif [ -d "$chosen_dir" ]
     then
-
         # Find last non active pane.
         local nap_index=$(
             echo $last_locations \
