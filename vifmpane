@@ -8,6 +8,10 @@ vifmpane()
 {
     # local -x TERM=xterm-direct  # need for truecolor support
 
+    if [ ! $VIFM_PANE_STRATEGY ]; then
+        export VIFM_PANE_STRATEGY='last'
+    fi
+
     local CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/vifm"
     [ ! -d $CACHE_DIR ] && mkdir -p $CACHE_DIR
 
@@ -40,7 +44,8 @@ vifmpane()
             local first_pane="$nap_path"
             local second_pane="$PWD"
             $vifm_exe "$first_pane" "$second_pane" $@
-        else
+        elif [[ $VIFM_PANE_STRATEGY == 'last' ]]
+        then
             case $nap_index in
                 0)
                     local first_pane="$nap_path"
