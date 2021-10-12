@@ -1,9 +1,8 @@
 #!/usr/bin/bash
 
-# Abbreviations used
-# ------------------
-# nap : non active pane
-# ap  : active pane
+# Abbreviations used:
+#   nap : non active pane
+#   ap  : active pane
 
 vifmpane()
 {
@@ -14,109 +13,149 @@ vifmpane()
     [ ! -d $CACHE_DIR ] && mkdir -p $CACHE_DIR
 
 
-    if [ -x $(command -v vifmrun) ]
-    then
+    if [ -x $(command -v vifmrun) ]; then
         local vifm_exe=$(command -v vifmrun)
-    elif [ -x $(command -v vifm) ]
-    then
+    elif [ -x $(command -v vifm) ]; then
         local vifm_exe=$(command -v vifm)
     else
         printf "vifm isn't installed on your system!\n"
         exit 1
     fi
 
-    if [ ! -x $(command -v jq) ]
-    then
+    if [ ! -x $(command -v jq) ]; then
         printf "jq isn't installed on your system!\n"
         exit 1
     fi
 
-    local temp_file="$(mktemp -t "vifm_cd.XXXXXXXXXX")"
-
     local nap_cache="$CACHE_DIR/non_active_pane"
 
-    # If file exists and has size greater than zero.
-    if [ -s $nap_cache ]
+    if [[ $VIFM_PANE_STRATEGY == 'left' || $VIFM_PANE_STRATEGY == 'first' ]]
+    then
+        echo 'read strategy: left'
+        $vifm_exe "$PWD" $@
+    elif [ -s $nap_cache ]  # -s : If file exists and has size greater than zero.
     then
         local nap_path=$(head -1 $nap_cache)
         local nap_index=$(tail -1 $nap_cache)
-        case $nap_index in
-            0)
-                local first_pane="$nap_path"
-                local second_pane="$PWD"
-                ;;
-            1)
-                local first_pane="$PWD"
-                local second_pane="$nap_path"
-                ;;
-            *)
-                local first_pane="$PWD"
-                local second_pane="$PWD"
-        esac
-        unset nap_index nap_path
 
-        $vifm_exe "$first_pane" "$second_pane" --choose-dir=$temp_file $@
+        if [[ $VIFM_PANE_STRATEGY == 'right' || $VIFM_PANE_STRATEGY == 'second' ]]
+        then
+            echo 'read strategy: right'
+            local first_pane="$nap_path"
+            local second_pane="$PWD"
+            $vifm_exe "$first_pane" "$second_pane" $@
+        else
+            echo 'read strategy: last'
+            case $nap_index in
+                0)
+                    local first_pane="$nap_path"
+                    local second_pane="$PWD"
+                    ;;
+                1)
+                    local first_pane="$PWD"
+                    local second_pane="$nap_path"
+                    ;;
+                *)
+                    local first_pane="$PWD"
+                    local second_pane="$PWD"
+            esac
+
+            local temp_file="$(mktemp -t "vifm_cd.XXXXXXXXXX")"
+            $vifm_exe "$first_pane" "$second_pane" --choose-dir=$temp_file $@
+        fi
     else
+        echo 'cache file does not exist'
+        local temp_file="$(mktemp -t "vifm_cd.XXXXXXXXXX")"
         $vifm_exe "$PWD" --choose-dir=$temp_file $@
     fi
     local return_value="$?"
 
-    local vifminfo="$HOME/.config/vifm/vifminfo.json"
-
-    # # For debugging purposes:
-    # jq '{gtabs, "active-gtab": (."active-gtab" // 0) }' $vifminfo \
-    # | jq 'del(.gtabs[].panes[].ptabs[].history)' \
-    # > $CACHE_DIR/last_locations.json
-
-    if [ -f "$temp_file" ]
-    then
+    if [ -f "$temp_file" ]; then
+        echo 'temp file exist'
         local chosen_dir="$(cat -- "$temp_file")"
         command rm -f "$temp_file"
-
-        if [ -d "$chosen_dir" ]
-        then
-            # Get last locations on each pane on active tab.
-            local last_locations=$(
-                # If there are several global tabs we consider only active tab.
-                # And so with pane tabs.
-                jq '.' $vifminfo \
-                | jq 'if ."active-gtab" then .gtabs[."active-gtab"] else .gtabs[] end' \
-                | jq 'del(.panes[].ptabs[].history)' \
-                | jq '.panes[]' \
-                | jq 'if ."active-ptab" then .ptabs[."active-ptab"] else .ptabs[] end' \
-                | jq '."last-location"' \
-                | jq --slurp 'to_entries'
-            )
-
-            # Find last non active pane.
-            local non_active_pane=$(
-                echo $last_locations \
-                | jq --arg x "$chosen_dir" '.[] | select(.value != $x) | .key'
-            )
-
-            # If $non_active_pane variable is empty, that means that on both
-            # panes the same path is set.  In this case, we choose the zero pane.
-            if [[ -z $non_active_pane ]]; then non_active_pane=0; fi
-
-            # If $non_active_pane index is neither 0 nor 1, that means that
-            # something goes wrong (for example we leave vifm without
-            # saving state by :qa!). In this case we do nothing: doesn't save
-            # any data.
-            if [[ $non_active_pane == "0" || $non_active_pane == "1" ]]
-            then
-                local path_on_non_active_pane=$(
-                    echo $last_locations \
-                    | jq -r --arg n $non_active_pane '.[$n|tonumber].value'
-                )
-
-                echo $path_on_non_active_pane > $nap_cache
-                echo $non_active_pane >> $nap_cache
-            fi
-
-            if [ "$chosen_dir" != "$PWD" ]; then cd -- "$chosen_dir"; fi
-        fi
-        return $return_value
     fi
+
+    local vifminfo="$HOME/.config/vifm/vifminfo.json"
+
+    # For debugging purposes:
+    jq '{gtabs, "active-gtab": (."active-gtab" // 0) }' $vifminfo \
+    | jq 'del(.gtabs[].panes[].ptabs[].history)' \
+    > $CACHE_DIR/last_locations.json
+
+    # Get last locations on each pane on active tab.
+    local last_locations=$(
+        # If there are several global tabs we consider only active tab.
+        # And so with pane tabs.
+        jq '.' $vifminfo \
+        | jq 'if ."active-gtab" then .gtabs[."active-gtab"] else .gtabs[] end' \
+        | jq 'del(.panes[].ptabs[].history)' \
+        | jq '.panes[]' \
+        | jq 'if ."active-ptab" then .ptabs[."active-ptab"] else .ptabs[] end' \
+        | jq '."last-location"' \
+        | jq --slurp 'to_entries'
+    )
+
+    echo "last_locations:\n$last_locations"
+
+    if [[ $VIFM_PANE_STRATEGY == 'left' || $VIFM_PANE_STRATEGY == 'first' ]]
+    then
+        echo 'write strategy: left'
+        # When the “left” or “first” strategy is selected, the left panel is
+        # always considered to be the active panel, and the right panel is
+        # always considered to be non-active.
+        local ap_index=0
+        local nap_index=1
+        local skip=true
+    elif [[ $VIFM_PANE_STRATEGY == 'right' || $VIFM_PANE_STRATEGY == 'second' ]]
+    then
+        echo 'write strategy: right'
+        local nap_index=0
+        local ap_index=1
+    elif [ -d "$chosen_dir" ]
+    then
+        echo 'write strategy: last'
+
+        # Find last non active pane.
+        local nap_index=$(
+            echo $last_locations \
+            | jq --arg x "$chosen_dir" '.[] | select(.value != $x) | .key'
+        )
+
+        # If $non_active_pane variable is empty, that means that on both
+        # panes the same path is set.  In this case, we choose the zero pane.
+        if [[ -z $nap_index ]]; then nap_index=0; fi
+        echo "nap_index: $nap_index"
+
+        # If $non_active_pane index is neither 0 nor 1, that means that
+        # something goes wrong (for example we leave vifm without saving
+        # state by :qa!).  In this case, we don't save any data.
+        if [[ $nap_index != "0" && $nap_index != "1" ]]; then
+            echo 'set skip variable'
+            local skip=true
+        fi
+    fi
+
+    echo "chosen_dir: $chosen_dir"
+    if [ ! $chosen_dir ]; then
+        echo 'set $choosen_dir'
+        local chosen_dir=$(echo $last_locations | jq -r --arg n $ap_index '.[$n|tonumber].value')
+        echo "chosen_dir: $chosen_dir"
+    fi
+
+    # local ap_path=$(echo $last_locations | jq -r --arg n $ap_index '.[$n|tonumber].value')
+    local nap_path=$(echo $last_locations | jq -r --arg n $nap_index '.[$n|tonumber].value')
+
+    echo "skip: $skip"
+
+    if [ ! $skip ]; then
+        echo $nap_path > $nap_cache
+        echo $nap_index >> $nap_cache
+    fi
+
+    if [ "$chosen_dir" != "$PWD" ]; then cd -- "$chosen_dir"; fi
+
+    return $return_value
 }
 
 vifmpane "$@"
