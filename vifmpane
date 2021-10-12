@@ -130,7 +130,9 @@ vifmpane()
     fi
 
     if [ ! $chosen_dir ]; then
-        local chosen_dir=$(echo $last_locations | jq -r --arg n $ap_index '.[$n|tonumber].value')
+        local chosen_dir=$(
+            echo $last_locations | jq -r --arg n $ap_index '.[$n|tonumber].value'
+        )
     fi
 
     if [ ! $skip ]; then
